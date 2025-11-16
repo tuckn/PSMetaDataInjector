@@ -89,7 +89,7 @@ Describe 'PSMetaDataInjector' {
         It 'parses supported timestamp patterns' {
             InModuleScope SetMediaMetadata -ScriptBlock {
                 $samples = @(
-                    @{ File = '20130630T023600+0900.jpg'; Expected = '2013-06-30T02:36:00' },
+                    @{ File = '19990102T174300+0900.jpg'; Expected = '1999-01-02T17:43:00' },
                     @{ File = 'FP20090511182604_LED.jpg'; Expected = '2009-05-11T18:26:04' },
                     @{ File = 'Screenshot 2025-11-02 073031.png'; Expected = '2025-11-02T07:30:31' },
                     @{ File = '2015-07-02 12-16-05.jpg'; Expected = '2015-07-02T12:16:05' },
@@ -107,7 +107,7 @@ Describe 'PSMetaDataInjector' {
 
     Context 'Set-MediaMetadata' {
         It 'infers timestamps when requested' {
-            $filePath = [System.IO.Path]::Combine($script:TestsDest, '20130630T023600+0900.jpg')
+            $filePath = [System.IO.Path]::Combine($script:TestsDest, '19990102T174300+0900.jpg')
             $expectedExifToolPath = $script:TestExifToolPath
 
             InModuleScope SetMediaMetadata -ScriptBlock {
@@ -128,7 +128,7 @@ Describe 'PSMetaDataInjector' {
         }
 
         It 'falls back to CreatedDate when inference fails' {
-            $filePath = [System.IO.Path]::Combine($script:TestsDest, '20130630T023600+0900.jpg')
+            $filePath = [System.IO.Path]::Combine($script:TestsDest, '19990102T174300+0900.jpg')
             $toolPath = $script:TestExifToolPath
             $manualDate = Get-Date '2024-10-05T04:03:02'
 
@@ -148,7 +148,7 @@ Describe 'PSMetaDataInjector' {
         }
 
         It 'applies title, description, and keywords when provided' {
-            $filePath = [System.IO.Path]::Combine($script:TestsDest, '20130630T023600+0900.jpg')
+            $filePath = [System.IO.Path]::Combine($script:TestsDest, '19990102T174300+0900.jpg')
             $toolPath = $script:TestExifToolPath
             $titleValue = 'Kyoto Sunrise'
             $descriptionValue = '意図して脳細胞を増やすことについての気づきを綴った内容'
@@ -179,7 +179,7 @@ Describe 'PSMetaDataInjector' {
         }
 
         It 'skips files when no metadata is available' {
-            $filePath = [System.IO.Path]::Combine($script:TestsDest, '20130630T023600+0900.jpg')
+            $filePath = [System.IO.Path]::Combine($script:TestsDest, '19990102T174300+0900.jpg')
             $toolPath = $script:TestExifToolPath
 
             InModuleScope SetMediaMetadata -ScriptBlock {
@@ -216,7 +216,7 @@ Describe 'PSMetaDataInjector' {
         }
 
         It 'respects WhatIf mode' {
-            $filePath = [System.IO.Path]::Combine($script:TestsDest, '20130630T023600+0900.jpg')
+            $filePath = [System.IO.Path]::Combine($script:TestsDest, '19990102T174300+0900.jpg')
             $toolPath = $script:TestExifToolPath
 
             InModuleScope SetMediaMetadata -ScriptBlock {

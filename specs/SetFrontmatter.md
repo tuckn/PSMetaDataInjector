@@ -4,32 +4,33 @@ Update YAML frontmatter at the top of Markdown notes.
 
 - Status: Draft (tracking Set-MarkdownFrontmatter module work)
 - Owner: @tuckn
-- Links: modules/SetFrontmatter.psm1, scripts/SetFrontmatter.ps1, tests/SetMediaMetadata.Tests.ps1
+- Links: modules/SetFrontmatter.psm1, scripts/SetFrontmatter.ps1, tests/SetFrontmatter.Tests.ps1
 
 ## 1. Summary (Introduction)
 
-`Set-MarkdownFrontmatter` writes (or replaces) a YAML block at the head of a Markdown file. It manages `noteId`, `title`, `description`, `date`, and `tags`, inserting the block when missing and updating specific keys when present. The command is shipped both as a module function and as wrapper scripts (`scripts/SetFrontmatter.ps1` / `scripts/cmd/SetFrontmatter.cmd`).
+Markdownファイルの先頭に Frontmatter（YAMLブロック）を挿入し、`noteId`、`title`、`description`、`date`、`tags`、`files` を登録する。すでにFrontmatterが存在する場合、指定したキーのみを更新し、残りのキーは変更しない。モジュール関数（`./modules/SetFrontmatter.psm1`）とラッパースクリプト（`scripts/SetFrontmatter.ps1` / `scripts/cmd/SetFrontmatter.cmd`）の両方を提供する。
 
 ## 2. Intent (User Story / Goal)
 
 As a note taker,
-I want consistent frontmatter metadata (GUID, title, tags, dates),
+I want consistent frontmatter metadata (GUID, title, tags, date, files),
 so that my Markdown vault stays searchable by static-site generators and note tools.
 
 ## 3. Scope
 
 ### In-Scope
 
-- YAML block management bounded by `---` delimiters at the top of Markdown files.
-- Automatic issuance/preservation of `noteId` GUIDs per file.
-- Title/description/date/tags updates with configurable inputs (direct parameters or JSON config via wrapper script).
-- Support for batch invocation via wrapper script targeting multiple files.
+- 指定されたMarkdownファイルの先頭にある `---` 区切り文字で区切られた YAMLブロックの管理。
+- ファイルごとに `noteId` GUID を自動的に発行/保存。
+- 引数で指定されたメタデータをFrontmatterとして更新する
+- PowerShellモジュール（.psm1）とそれをラッパーするスクリプト（.ps1）の提供
+- PowerShellスクリプト（.ps1）をラッパーするCMDスクリプト（.cmd）の提供
 
 ### Non-Goals
 
-- Manipulating Markdown body content (headings, reflow, etc.).
-- Managing metadata stored outside frontmatter (HTML comments, footers, etc.).
-- Markdown parsing beyond frontmatter detection (no AST work).
+- Markdown本文のコンテンツ（見出し、リフローなど）の操作。
+- Frontmatter外に保存されたメタデータ（HTML コメント、フッターなど）の管理。
+- Frontmatter検出以降のMarkdownの構文解析（AST 処理なし）。
 
 ## 4. Contract (API / CLI / Data)
 
@@ -37,24 +38,26 @@ so that my Markdown vault stays searchable by static-site generators and note to
 
 | Param       | Type            | Req | Default | Notes |
 |-------------|-----------------|-----|---------|-------|
-| `-Path`     | string          | ✓   | —       | File path; resolved via `Resolve-Path` |
-| `-Title`    | string          | ✓   | —       | Empty/whitespace rejected |
-| `-Description` | string       | —   | `""`   | `null` treated as empty |
-| `-Date`     | datetime        | ✓   | —       | Serialized as `yyyy-MM-dd` |
-| `-Tags`     | string[]        | —   | `[]`    | Output as YAML array |
+| `-Path`     | string          | ✓   | --      | File path; resolved via `Resolve-Path` |
+| `-Title`    | string          | --   | --      | Empty/whitespace rejected |
+| `-DateTitle`    | string          | --   | --      | Empty/whitespace rejected |
+| `-Description` | string       | --   | `""`   | `null` treated as empty |
+| `-Date`     | datetime        | --   | --       | Serialized as `yyyy-MM-dd` |
+| `-Tags`     | string[]        | --   | `[]`    | Output as YAML array |
+| `-Files`    | string[]        | --   | `[]`    | Output as YAML array |
+| `-Passthru`      | switch        | —   | false   | Emits objects (SourcePath, Title, Description, etc.) |
 
-- Control params: `-WhatIf`, `-Confirm` supported.
-- Encoding: always writes UTF-8 with BOM, ensuring Windows PowerShell compatibility.
+### 4.2 Wrapper CLI
 
-### 4.2 Wrapper CLI (`scripts/SetFrontmatter.ps1` / `.cmd`)
+**`scripts/SetFrontmatter.ps1`**
+- 受け取る引数は、Module APIと同等
 
-- Accepts the same logical parameters plus `-ConfigJsonPath` for bulk edits.
-- Resolves multiple `-Path` values (array) before calling the module.
-- `.cmd` helper chooses `pwsh` when available, otherwise falls back to Windows PowerShell.
+**`scripts/cmd/SetFrontmatter.cmd`**
+- 受け取ったすべての引数を.ps1スクリプトに渡す
 
 ### 4.3 Data Spec
 
-新規作成例：
+#### Example: 新規作成例
 
 ```markdown
 ---
@@ -62,7 +65,12 @@ noteId: "d3f29c4e-8b6a-4f3e-9e3b-2c1f5e9a7c1a"
 title: "git.exeがcore.autocrlfを無視する"
 description: ""
 date: 2018-01-30
-tags: ["JavaScript", "React", "WinMerge"]
+tags: ["JavaScript", "Git", "WinMerge"]
+files:
+  - "ss:/20190102T070750+0900.png"
+  - "ss:/20190102T070816+0900.png"
+  - "ss:/20190102T071812+0900.png"
+  - "ss:/20190102T072705+0900.png"
 ---
 
 本文…
@@ -70,39 +78,38 @@ tags: ["JavaScript", "React", "WinMerge"]
 
 ## 5. Rules & Invariants
 
-- **MUST** insert exactly one blank line between the closing `---` and Markdown body.
-- **MUST** preserve an existing non-empty `noteId`; generate a GUID when absent/blank.
-- **MUST** quote scalar values (title/description/noteId) with escaped quotes; tags emitted as `['tag']` array.
-- **MUST** strip leading frontmatter (if any) before rewriting; body text otherwise untouched (aside from leading whitespace trimming).
-- **SHOULD** retain the file’s original newline convention when possible (CRLF on Windows).
-- **SHOULD** produce deterministic output ordering: noteId → title → description → date → tags.
+- **MUST** 指定されたMarkdown本文の1行目にFrontmatterを挿入する。
+- **MUST** Frontmatterを閉じる `---` とMarkdown本文の間に1行の空行を挿入する。
+- **MUST** Frontmatter内の`noteID`が未定義、または空欄だった場合、GUIDを生成して設定する。
+- **MUST** Fronmatterの追加か更新があり、Markdownファイルを保存する場合、元のファイルエンコーディグで保存する。
+- **SHOULD** Frontmatter内の並び: noteId → title → description → date → tags→ files.
 
 ## 6. Acceptance
 
 ### 6.1 Criteria
 
-- Unit tests in `tests/SetMediaMetadata.Tests.ps1` covering new/replace noteId scenarios pass via `Invoke-Pester -CI` on pwsh.
-- README documents usage and explains noteId/tag behavior.
-- Wrapper script resolves config overrides (command-line args win over JSON).
+- `7. Quality (Non-Functional Gates)`に記載しているすべてのGateを満たす
+- `README.md`に、現状態の使用方法と仕様の説明が反映されている
 
 ### 6.2 Scenarios (Gherkin)
 
 ```gherkin
-Scenario: Insert frontmatter when none exists
-  Given a Markdown file without a YAML header
-  When I run Set-MarkdownFrontmatter -Path note.md -Title "Foo" -Date (Get-Date '2024-10-05')
-  Then a frontmatter block is prepended with a generated noteId and the specified title/date
-  And exactly one blank line separates the block from the original body
+Scenario: DateTitleでTitleとDateを更新
+  Given まだFrontmatterが挿入されていないMarkdown "2018-05-06 GhostscriptでPDFサイズを圧縮する.md"
+  When 引数`DateTitle`に"2018-05-06 GhostscriptでPDFサイズを圧縮する"を指定してスクリプトを実行する
+  Then 引数で指定された文字列先頭が`yyyy-MM-dd`または"yyyyMMddThhmmss"であれば、それをDateと解釈して切り出す
+  And 指定されたMarkdownsファイルの1行目にFrontmatterを追加する。
+  And GUIDを生成し`noteId`に設定、`Title`に"GhostscriptでPDFサイズを圧縮する"、`date`に"2018-05-06"を設定、
 
-Scenario: Preserve existing noteId while updating other fields
-  Given note.md already includes noteId "1234"
-  When I run Set-MarkdownFrontmatter -Title "New" -Description "Updated" -Date (Get-Date '2024-11-09')
-  Then noteId remains "1234" and other keys reflect the new values
+Scenario: 既存のnoteIdを優先するが他の項目は更新
+  Given Frontmatterの定義がすでにあり、`noteId`が"1234"であるMarkdown
+  When 引数`Title`に"New Title"、引数`Description`に"New Description"、引数`Date`に"2024-11-09"を指定してスクリプトを実行する
+  Then `noteId`は"1234"のまま、Title、Description、Dateが指定の値に更新される
 
-Scenario: Generate noteId when frontmatter lacks it
-  Given note.md has a frontmatter without noteId
-  When I run Set-MarkdownFrontmatter with required fields
-  Then a new GUID noteId is inserted
+Scenario: Frontmatterの定義がすでにあるがnoteIdの定義がない
+  Given Frontmatterの定義がすでにあるがnoteIdの定義がないMarkdownファイル
+  When 引数`Path`にMarkdownのファイルパスのみを指定してスクリプトを実行する
+  Then Markdown内のFrontmatterに`noteId`が追加され、GUID値が設定される
 ```
 
 ## 7. Quality (Non-Functional Gates)
@@ -116,16 +123,11 @@ Scenario: Generate noteId when frontmatter lacks it
 
 ## 8. Open Questions
 
-1. Should tags preserve order or be alphabetized? (current: preserve input order)
-2. Need a dry-run summary mode for batch operations? (currently `-WhatIf` logs only)
-3. Support for custom frontmatter keys beyond the core ones?
 
 ## 9. Decisions & Rationale
 
-- `noteId` chosen as GUID because downstream systems expect global uniqueness.
-- YAML quoting enforced to handle multibyte strings and embedded quotes reliably.
-- Wrapper script introduced to share config loading semantics with Set-MediaMetadata.
+- PowerShell 5.xの規定で対応しているGUIDを`noteId` として採用
 
 ## 10. References & Changelog
 
-- 2025-11-15: Structured spec based on `specs/sample.md` template and aligned with latest module implementation.
+- 2025-11-15: 新規作成

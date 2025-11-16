@@ -23,6 +23,7 @@ so that Lightroom, DAM tools, and AI workflows read consistent tags regardless o
 - Exiftoolで対応しているメディアファイル、かつXMPデータがき込み可能なメディア形式（.png、.jpgなど）
 - ファイル単体指定、複数ファイル指定、フォルダ指定
 - ファイル名パターンからのタイムスタンプ推論
+- 引数で指定されたメタデータ情報をXMPとして書き込む
 - PowerShellモジュール（.psm1）とそれをラッパーするスクリプト（.ps1）の提供
 - PowerShellスクリプト（.ps1）をラッパーするCMDスクリプト（.cmd）の提供
 
@@ -177,7 +178,7 @@ so that Lightroom, DAM tools, and AI workflows read consistent tags regardless o
 ### Created DateTime
 
 - **MUST** `-InferCreatedDate`が設定された場合、本仕様書の`4.3 Data Spec`の`Example: ファイル名から日時の変換`に記載されている例を参照し、ファイル名から生成日時を解析する
-- **MUST** `-InferCreatedDate`と`-CreatedDate`が同時に指定された場合、`-CreatedDate`の値を採用して書き込む
+- **MUST** `-InferCreatedDate`と`-CreatedDate`が同時に指定された場合、まずはファイル名から日時を推測し、もしそれが失敗したら`-CreatedDate`の値を採用する
 - **MUST** 時刻の書式は `YYYY-MM-DDThh:mm:ss`。タイムゾーンの書き込みは行わない
 - **MUST** 時刻が不明な場合は、00:00:00とする
 - **MUST** 書き込むメタデータは、本仕様書の`4.3 Data Spec`の`Example: XMP - Created DateTiem`に記載されている例を参照すること
@@ -193,45 +194,63 @@ so that Lightroom, DAM tools, and AI workflows read consistent tags regardless o
 - **MUST** `-Keywords`で`|`を含む文字列が指定され場合、それを階層キーワードとして解釈する。
 - **MUST** 書き込むキーワードは、大文字・小文字は区別する（例: `Apple`と`apple`は別）
 
-- 実行可能スクリプト。内部でModule APIを呼び出す
-
 ## 6. Acceptance
 
 ### 6.1 Criteria
 
-- `Invoke-Pester -CI`がすべてPassする
+- `7. Quality (Non-Functional Gates)`に記載しているすべてのGateを満たす
 - `README.md`に、現状態の使用方法と仕様の説明が反映されている
 
 ### 6.2 Scenarios (Gherkin)
 
 ```gherkin
 Scenario: ファイル名から生成日時を推測してメタデータを書き込む
-  Given "assets/19990102T174300+0900.jpg"
-  When 引数に`InferCreatedDate`と`Passthur`が指定された
+  Given "19990102T174300+0900.jpg"
+  When 引数に`InferCreatedDate`と`Passthur`を指定してスクリプトを実行する
   Then exiftoolを1回呼び出し、生成日時`1999-01-02T17:43:00`であるXMPメタデータを対象のファイルに書き込む
   And Passthruオブジェクトに"1999-01-02T17:43:00"が含まれる。
 
 Scenario: 指定された生成日時のメタデータを書き込む
-  Given "assets/Screenshot_AsusH370PRO.png"
-  When 引数に`CreatedDate "2022-03-02"`が指定された
+  Given "Screenshot_AsusH370PRO.png"
+  When 引数に`CreatedDate "2022-03-02"`を指定してスクリプトを実行する
   Then exiftoolを1回呼び出し、生成日時`2022-03-02T00:00:00`であるXMPメタデータを対象のファイルに書き込む
 
+Scenario Outline: InferCreatedDateの日時推測失敗時にCreatedDateを適用
+  Given <input>
+  When 引数に`-InferCreatedDate`と`-CreatedDate "<fallbackDate>"`を指定してスクリプトを実行する
+  Then 生成日時を示すXMPメタデータに<writtenDate>が書き込まれる
+Examples:
+  | input | fallbackDate | writtenDate |
+  | Screenshot_AsusH370PRO.png | 2025-01-01T00:00:00 | 2025-01-01T00:00:00 |
+  | 2009-01-13_Screenshot_HTC-S22HT.png | 2025-01-01T00:00:00 | 2009-01-13T00:00:00 |
+
+Scenario: 入力のフォルダ対応と出力先フォルダの指定
+  When 引数に`InferCreatedDate`、`InputPath "./assets"`、`OutputDirectory "./test/dest"`を指定してスクリプトを実行する
+  Then "./assets"内にあるすべての対応ファイルに対し処理を行い、"./test/dest"に同一のファイル名で保存する。
+
 Scenario: 指定されたタイトルと概要文のメタデータを書き込む
-  Given "assets/Screenshot 2025-11-02 073031.png"
-  When 引数に`Title "自身のアバターアイコンを作成"`と`Description "自身のアバターアイコンを作成し、Paintで表示したときのスクリーンショット"`が指定された
+  Given "Screenshot 2025-11-02 073031.png"
+  When 引数に`Title "自身のアバターアイコンを作成"`と`Description "自身のアバターアイコンを作成し、Paintで表示したときのスクリーンショット"`を指定してスクリプトを実行する
   Then exiftoolを1回呼び出し、TitleとDescriptionのXMPメタデータに指定された文字列を適用する
 
 Scenario: 指定されたキーワードのメタデータを書き込む
-  Given "assets/2003-01-28-224920_yuno-Image1.jpg"
-  When 引数に`Keywords "screenshot", "game", "YU-NO"`が指定された
+  Given "2003-01-28-224920_yuno-Image1.jpg"
+  When 引数に`Keywords "screenshot", "game", "YU-NO"`を指定してスクリプトを実行する
   Then exiftoolを1回呼び出し、Keywordsに関するXMPメタデータを更新する
 
-Scenario: 入力のフォルダ対応と出力先フォルダの指定
-  When 引数に`InferCreatedDate`、`InputPath "./assets"`、`OutputDirectory "./test/dest"`が指定された
-  Then "./assets"内にあるすべての対応ファイルに対し処理を行い、"./test/dest"に同一のファイル名で保存する。
+Scenario: 階層化キーワードの書き込み
+  When 引数に`-Keywords "A|B|C","A|B|D","E"`を指定してスクリプトを実行する
+  Then dc:subject contains A,B,C,D,E without duplicates (case-insensitive, stable order)
+  And  lr:weightedFlatSubject contains C,D,E
+  And  lr:hierarchicalSubject contains exactly "A|B|C","A|B|D"
+
+Scenario: CLI overrides JSON
+  Given config.json sets Title="X"
+  When I pass -Title "Y" on CLI
+  Then the written title equals "Y" (not "X")
 
 Scenario: Dry-RUnへの対応
-  When 引数に`WhatIf`が指定された
+  When 引数に`WhatIf`を指定してスクリプトを実行する
   Then exiftoolを実行せず、実施される処理内容だけを示す
 ```
 
@@ -249,10 +268,8 @@ Scenario: Dry-RUnへの対応
 
 ## 9. Decisions & Rationale
 
-- Maintained filename inference regexes to match historical screenshots and camera dumps (underscores, dashes, ISO8601 + offsets).
-- Staged output feature copies relative paths to simplify manual QA before in-place writes.
-- Module uses exiftool invocation through a helper function to ease mocking in tests.
+- 2025-11-14 Lightroom Classicの記録方法を採用 
 
 ## 10. References & Changelog
 
-- 2025-11-15: Restructured spec per `specs/sample.md`, synchronized with Task updates (Set-MediaMetadata replacing Set-Metadata).
+- 2025-11-15: 新規作成

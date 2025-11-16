@@ -98,7 +98,7 @@ $script:ModuleRoot = Split-Path -Parent $PSCommandPath
 
 ## Coding Rules
 
-- `./specs/*.md`の内容に従い、コーディングを行うこと
+- このファイルと`./specs/*.md`の内容に従い、コーディングを行うこと
 - 検討・作業中に何か疑問点が発生した場合、`./specs/*.md`の`## 8. Open Questions`に追加する
 
 - Windows 11既定のPowerShell (Windows PowerShell 5.x)で動作することを優先するため、可能な限りPS5で利用可能なコマンドレット・構文を使用する。
@@ -235,10 +235,15 @@ endlocal
 - スクリプト実行時に引数の指定を容易にするために利用される。
 - `-ConfigJsonPath <Config File Path>`が指定された場合で、`<Config File Path>`の内容とコマンドラインの引数が重複している場合、コマンドラインの引数の値を優先する。
 
+### `./README.md`
+
+- 
+
 ## Build & Test (Executable)
 
 - Pester v5によるユニット/統合テストを `./tests/` に配置（`Invoke-Pester -CI`）
 - テストファイルは`./modules/<ModuleName>.psm1`と対になるように、`./modules/<ModuleName>.Tests.ps1`を作成する
+- `./assets/`にあるファイルを更新しないこと。ここにあるファイルをテスト用として利用する場合、`./tests/`にコピーすること。
 - PSScriptAnalyzerをCIで走らせ、少なくとも次のルールを有効化する。`PSUseApprovedVerbs`, `PSAvoidUsingWriteHost`, `UseToExportFieldsInManifest`
 
 - Codexが動作しているWSL上には、`pwsh`がインストールされている。動作確認やテストにはこれを利用すること。

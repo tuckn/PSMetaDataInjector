@@ -5,12 +5,18 @@ param(
 
     [string] $Title,
 
+    [string] $DateTitle,
+
     [AllowNull()]
-    [string] $Description = '',
+    [string] $Description,
 
     [Nullable[datetime]] $Date,
 
     [string[]] $Tags,
+
+    [string[]] $Files,
+
+    [switch] $Passthru,
 
     [ValidateNotNullOrEmpty()]
     [string] $ConfigJsonPath
@@ -21,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot '..\PSMetaDataInjector.psd1') -Force -ErrorAction Stop
 
-$parameterOrder = @('Path','Title','Description','Date','Tags')
+$parameterOrder = @('Path','Title','DateTitle','Description','Date','Tags','Files','Passthru')
 $configParameters = @{}
 
 if ($PSBoundParameters.ContainsKey('ConfigJsonPath')) {
@@ -61,7 +67,7 @@ foreach ($name in $parameterOrder) {
     }
 }
 
-$required = @('Path','Title','Date')
+$required = @('Path')
 foreach ($req in $required) {
     if (-not $effectiveParameters.ContainsKey($req) -or [string]::IsNullOrWhiteSpace([string]$effectiveParameters[$req])) {
         throw ("{0} must be supplied either on the command line or in the configuration file." -f $req)
@@ -78,35 +84,52 @@ foreach ($target in @($effectiveParameters['Path'])) {
     }
 }
 
-$title = $effectiveParameters['Title']
-if ([string]::IsNullOrWhiteSpace($title)) {
-    throw 'Title must not be empty.'
+$callBase = @{}
+
+if ($effectiveParameters.ContainsKey('Title')) {
+    $titleValue = [string]$effectiveParameters['Title']
+    if ([string]::IsNullOrWhiteSpace($titleValue)) {
+        throw 'Title must not be empty when provided.'
+    }
+    $callBase['Title'] = $titleValue
 }
 
-try {
-    $dateValue = [datetime]$effectiveParameters['Date']
-}
-catch {
-    throw ("Date value '{0}' could not be converted to datetime: {1}" -f $effectiveParameters['Date'], $_.Exception.Message)
+if ($effectiveParameters.ContainsKey('DateTitle')) {
+    $callBase['DateTitle'] = [string]$effectiveParameters['DateTitle']
 }
 
-$description = if ($effectiveParameters.ContainsKey('Description')) { $effectiveParameters['Description'] } else { '' }
-$tags = if ($effectiveParameters.ContainsKey('Tags')) { [string[]]$effectiveParameters['Tags'] } else { $null }
+if ($effectiveParameters.ContainsKey('Description')) {
+    $callBase['Description'] = $effectiveParameters['Description']
+}
+
+if ($effectiveParameters.ContainsKey('Date')) {
+    try {
+        $callBase['Date'] = [datetime]$effectiveParameters['Date']
+    }
+    catch {
+        throw ("Date value '{0}' could not be converted to datetime: {1}" -f $effectiveParameters['Date'], $_.Exception.Message)
+    }
+}
+
+if ($effectiveParameters.ContainsKey('Tags')) {
+    $callBase['Tags'] = [string[]]$effectiveParameters['Tags']
+}
+
+if ($effectiveParameters.ContainsKey('Files')) {
+    $callBase['Files'] = [string[]]$effectiveParameters['Files']
+}
+
+if ($effectiveParameters.ContainsKey('Passthru')) {
+    if ([bool]$effectiveParameters['Passthru']) {
+        $callBase['Passthru'] = $true
+    }
+}
 
 $controlParameters = @{}
 foreach ($control in @('WhatIf','Confirm')) {
     if ($PSBoundParameters.ContainsKey($control)) {
         $controlParameters[$control] = $PSBoundParameters[$control]
     }
-}
-
-$callBase = @{
-    Title = $title
-    Description = $description
-    Date = $dateValue
-}
-if ($null -ne $tags) {
-    $callBase['Tags'] = $tags
 }
 
 foreach ($targetPath in $paths) {

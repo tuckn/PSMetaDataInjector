@@ -8,7 +8,50 @@ PSMetaDataInjector adds metadata to files by parsing timestamps from their names
 - Windows PowerShell 5.1
 - A local copy of `exiftool`. Install it separately and either add it to your `PATH` or pass `-ExifToolPath` to point at the executable. (The binary is intentionally not bundled in this repository.)
 
-## Usage
+## Usage {Script}
+
+### Run via the helper script
+
+```powershell
+SetMediaMetadata.ps1 -InputPath "assets" -OutputDirectory "dest" -InferCreatedDate -Title "Sample Title" -Description "Optional description stored with the image." -Keywords "travel" "night" -Passthru
+```
+
+### with optional JSON configuration
+
+```powershell
+scripts\SetMediaMetadata.ps1 -ConfigJsonPath .\scripts\config_sample.json
+```
+
+`scripts\config_sample.json` showcases every supported key:
+
+```json
+{
+  "InputPath": "../assets",
+  "ExifToolPath": "C:/tools/exiftool/exiftool.exe",
+  "OutputDirectory": "../tests/dest",
+  "CreatedDate": "2025-01-01T00:00:00",
+  "InferCreatedDate": true,
+  "Title": "Sample Title",
+  "Description": "Optional description stored with the image.",
+  "Keywords": ["travel", "night"],
+  "Recurse": false,
+  "Passthru": true
+}
+```
+
+Values supplied on the command line always override values supplied in the JSON file.
+
+For Markdown workflows, run `scripts\SetFrontmatter.ps1` with the same pattern—pass one or more `-Path` values, optionally point `-ConfigJsonPath` at a file that stores defaults for `DateTitle`, `Description`, `Tags`, or `Files`, and then rely on explicit command-line arguments to override anything pulled from that JSON payload.
+
+### Use the CMD launcher
+
+```cmd
+scripts\cmd\SetMediaMetadata.cmd "D:\My Screenshots" -Recurse -InferCreatedDate -ExifToolPath "C:\tools\exiftool\exiftool.exe"
+```
+
+Use `-WhatIf` to see what would be changed without writing metadata, `-Passthru` to emit rich objects describing each updated file, `-OutputDirectory` to stage the edits elsewhere, `-Title`/`-Keywords` to push descriptive metadata, and `-ExifToolPath` to target any specific exiftool binary.
+
+## Usage {Module}
 
 ### Import the module and use the system `PATH`
 
@@ -51,50 +94,20 @@ This produces the expected XMP fragments (dc:Subject, lr:weightedFlatSubject, an
 
 ### Write Markdown frontmatter
 
-Use `Set-MarkdownFrontmatter` when you need to seed Markdown files (for example, blog posts) with the same metadata. The cmdlet always emits/updates a `noteId` GUID (preserving the existing value when present) along with title, description, date, and tags:
+Use `Set-MarkdownFrontmatter` when you need to seed Markdown files (for example, blog posts) with the same metadata. The cmdlet always ensures the frontmatter contains a `noteId` GUID plus `title`, `description`, `date`, `tags`, and `files`. When `-DateTitle` is provided, the cmdlet pulls a `yyyy-MM-dd` or `yyyyMMddThhmmss` prefix from the supplied string to populate the `date` value and treats the remaining text as the `title`, which is handy when your file names begin with timestamps. The new `-Files` parameter records related attachments (screenshots, documents, etc.) as a YAML sequence, and `-Passthru` returns the metadata object that was applied.
 
 ```powershell
 Set-MarkdownFrontmatter -Path .\posts\git-core-autocrlf.md `
-                        -Title 'git.exeがcore.autocrlfを無視する' `
+                        -DateTitle '2018-01-30 git.exeがcore.autocrlfを無視する' `
                         -Description '' `
-                        -Date (Get-Date '2018-01-30') `
-                        -Tags 'JavaScript','React','WinMerge'
+                        -Tags 'JavaScript','React','WinMerge' `
+                        -Files 'ss:/20190102T070750+0900.png','ss:/20190102T070816+0900.png' `
+                        -Passthru
 ```
 
-The function replaces any existing block delimited by `---` and rewrites the file using UTF-8 with BOM so static-site generators can ingest it immediately.
+The function replaces any existing block delimited by `---`, preserves un-managed keys in the original block, and rewrites the file using UTF-8 with BOM so static-site generators can ingest it immediately. The helper script `scripts\SetFrontmatter.ps1` accepts the same parameters (plus an optional `-ConfigJsonPath`) so you can pre-fill `Path`, `DateTitle`, `Tags`, or file lists in JSON and override any value from the command line.
 
-### Run via the helper script (with optional JSON configuration)
-
-```powershell
-scripts\SetMediaMetadata.ps1 -ConfigJsonPath .\scripts\config_sample.json -Passthru
-```
-
-`scripts\config_sample.json` showcases every supported key:
-
-```json
-{
-  "InputPath": "../assets",
-  "ExifToolPath": "C:/tools/exiftool/exiftool.exe",
-  "OutputDirectory": "../tests/dest",
-  "CreatedDate": "2025-01-01T00:00:00",
-  "InferCreatedDate": true,
-  "Title": "Sample Title",
-  "Description": "Optional description stored with the image.",
-  "Keywords": ["travel", "night"],
-  "Recurse": true,
-  "Passthru": false
-}
-```
-
-Values supplied on the command line always override values supplied in the JSON file.
-
-### Use the CMD launcher
-
-```cmd
-scripts\cmd\SetMediaMetadata.cmd "D:\My Screenshots" -Recurse -InferCreatedDate -ExifToolPath "C:\tools\exiftool\exiftool.exe"
-```
-
-Use `-WhatIf` to see what would be changed without writing metadata, `-Passthru` to emit rich objects describing each updated file, `-OutputDirectory` to stage the edits elsewhere, `-Title`/`-Keywords` to push descriptive metadata, and `-ExifToolPath` to target any specific exiftool binary.
+Set-MarkdownFrontmatter also preserves the original file encoding (UTF-8 with/without BOM, UTF-16, etc.) whenever it saves changes so that existing Markdown diffs stay clean even when the note vault mixes encodings.
 
 ## Testing
 
@@ -135,7 +148,7 @@ Set-MediaMetadata -InputPath $assets `
 Then inspect any output file with exiftool to verify the expected tags:
 
 ```powershell
-& (Join-Path $repo 'bin/exiftool.exe') -G -XMP:DateTimeOriginal -XMP:Headline -XMP:Subject (Join-Path $dest '20130630T023600+0900.jpg')
+& (Join-Path $repo 'bin/exiftool.exe') -G -XMP:DateTimeOriginal -XMP:Headline -XMP:Subject (Join-Path $dest '19990102T174300+0900.jpg')
 ```
 
 This procedure runs against actual files, so undo changes as needed (for example by deleting `tests\dest`) before rerunning the unit test suite.
