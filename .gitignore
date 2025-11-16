@@ -1,3 +1,6 @@
 scripts/config.json
 bin/exiftool.exe
 bin/exiftool
+TASKS.md
+sync.ffs_db
+testResults.xml

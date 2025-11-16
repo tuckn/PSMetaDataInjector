@@ -1,7 +1,15 @@
 {
-  "InputPath": "D:\\My Screenshots",
-  "ExifToolPath": "C:\\Program Files\\ExifTool\\ExifTool.exe",
-  "OutputDirectory": "D:\\My Screenshots\\dest",
+  "InputPath": "../assets",
+  "ExifToolPath": "C:/tools/exiftool/exiftool.exe",
+  "OutputDirectory": "../tests/dest",
+  "CreatedDate": "2025-01-01T00:00:00",
+  "InferCreatedDate": true,
+  "Title": "Sample Title",
+  "Description": "Optional description stored with the image.",
+  "Keywords": [
+    "travel",
+    "night"
+  ],
   "Recurse": true,
   "Passthru": false
 }

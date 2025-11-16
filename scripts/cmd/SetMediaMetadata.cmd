@@ -2,7 +2,7 @@
 @echo off
 setlocal EnableExtensions
 set "_ROOT=%~dp0.."
-set "_SCRIPT=%_ROOT%\AddImageXmpDateMetadata.ps1"
+set "_SCRIPT=%_ROOT%\SetMediaMetadata.ps1"
 
 where pwsh.exe >nul 2>&1
 if not errorlevel 1 (
