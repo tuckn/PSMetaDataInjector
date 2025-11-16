@@ -368,7 +368,7 @@ Outputs an object describing each updated file to the pipeline.
     process {
         $resolvedInput = @()
         try {
-            $resolvedInput = @(Resolve-Path -LiteralPath $InputPath -ErrorAction Stop)
+            $resolvedInput = @(Resolve-Path -Path $InputPath -ErrorAction Stop)
         }
         catch {
             Write-Error ("Input path '{0}' could not be resolved: {1}" -f $InputPath, $_.Exception.Message)

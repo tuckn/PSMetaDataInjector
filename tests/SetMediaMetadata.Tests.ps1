@@ -228,6 +228,38 @@ Describe 'PSMetaDataInjector' {
                 Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 0
             } -ArgumentList $filePath, $toolPath
         }
+
+        It 'resolves wildcard InputPath values' {
+            $wildcardRoot = Join-Path $script:TestsDest 'wildcards'
+            if (-not (Test-Path -LiteralPath $wildcardRoot)) {
+                New-Item -ItemType Directory -Path $wildcardRoot | Out-Null
+            }
+
+            $sample = Get-ChildItem -LiteralPath $script:TestsDest -Filter '*.jpg' | Select-Object -First 1
+            if (-not $sample) {
+                throw 'No JPG sample was found to validate wildcard handling.'
+            }
+
+            $copied = Copy-Item -LiteralPath $sample.FullName -Destination $wildcardRoot -Force -PassThru
+            $copiedPath = (Resolve-Path -LiteralPath $copied.FullName).ProviderPath
+            $pattern = Join-Path $wildcardRoot '*.jpg'
+            $toolPath = $script:TestExifToolPath
+            $manualDate = Get-Date '2024-12-01T12:00:00'
+
+            InModuleScope SetMediaMetadata -ScriptBlock {
+                param($inputPattern, $expectedFile, $tp, $manual)
+                Mock Invoke-PSMetaDataInjectorExifTool { param($ExecutablePath, $Arguments) return 0 } -ModuleName SetMediaMetadata
+
+                $result = Set-MediaMetadata -InputPath $inputPattern -CreatedDate $manual -ExifToolPath $tp -Passthru -WhatIf:$false -Confirm:$false
+
+                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1 -ParameterFilter {
+                    $Arguments[-1] -eq $expectedFile
+                }
+
+                $result.FilePath | Should -Be $expectedFile
+                $result.Timestamp | Should -Be '2024-12-01T12:00:00'
+            } -ArgumentList $pattern, $copiedPath, $toolPath, $manualDate
+        }
     }
 
     Context 'Set-MarkdownFrontmatter' {
