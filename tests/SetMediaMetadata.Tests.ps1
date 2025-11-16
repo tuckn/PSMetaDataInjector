@@ -120,10 +120,10 @@ Describe 'PSMetaDataInjector' {
                     $ExecutablePath -eq $toolPath -and
                     $Arguments[-1] -eq $fp -and
                     $Arguments -contains '-overwrite_original' -and
-                    $Arguments -contains "-XMP-exif:DateTimeOriginal=2013-06-30T02:36:00"
+                    $Arguments -contains "-XMP-exif:DateTimeOriginal=1999-01-02T17:43:00"
                 }
 
-                $result.Timestamp | Should -Be '2013-06-30T02:36:00'
+                $result.Timestamp | Should -Be '1999-01-02T17:43:00'
             } -ArgumentList $filePath, $expectedExifToolPath
         }
 
