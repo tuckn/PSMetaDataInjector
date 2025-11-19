@@ -8,7 +8,7 @@ PSMetaDataInjector adds metadata to files by parsing timestamps from their names
 - Windows PowerShell 5.1
 - A local copy of `exiftool`. Install it separately and either add it to your `PATH` or pass `-ExifToolPath` to point at the executable. (The binary is intentionally not bundled in this repository.)
 
-## Usage {Script}
+## Usage (Script)
 
 ### Run via the helper script
 
@@ -51,7 +51,7 @@ scripts\cmd\SetMediaMetadata.cmd "D:\My Screenshots" -Recurse -InferCreatedDate 
 
 Use `-WhatIf` to see what would be changed without writing metadata, `-Passthru` to emit rich objects describing each updated file, `-OutputDirectory` to stage the edits elsewhere, `-Title`/`-Keywords` to push descriptive metadata, and `-ExifToolPath` to target any specific exiftool binary.
 
-## Usage {Module}
+## Usage (Module)
 
 ### Import the module and use the system `PATH`
 
