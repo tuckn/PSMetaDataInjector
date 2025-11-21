@@ -112,16 +112,30 @@ Describe 'PSMetaDataInjector' {
 
             InModuleScope SetMediaMetadata -ScriptBlock {
                 param($fp, $toolPath)
-                Mock Invoke-PSMetaDataInjectorExifTool { param($ExecutablePath, $Arguments) return 0 } -ModuleName SetMediaMetadata
+                $script:CapturedInvocation = $null
+                Mock Invoke-PSMetaDataInjectorExifTool {
+                    param($ExecutablePath, $Arguments)
+                    $content = @()
+                    if ($Arguments -and $Arguments[0] -eq '-@' -and $Arguments.Count -ge 2 -and (Test-Path -LiteralPath $Arguments[1])) {
+                        $content = Get-Content -LiteralPath $Arguments[1]
+                    }
+                    $script:CapturedInvocation = [pscustomobject]@{
+                        Executable  = $ExecutablePath
+                        Arguments   = $Arguments
+                        FileContent = $content
+                    }
+                    return 0
+                } -ModuleName SetMediaMetadata
 
                 $result = Set-MediaMetadata -InputPath $fp -InferCreatedDate -Passthru -ExifToolPath $toolPath -WhatIf:$false -Confirm:$false
 
-                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1 -ParameterFilter {
-                    $ExecutablePath -eq $toolPath -and
-                    $Arguments[-1] -eq $fp -and
-                    $Arguments -contains '-overwrite_original' -and
-                    $Arguments -contains "-XMP-exif:DateTimeOriginal=1999-01-02T17:43:00"
-                }
+                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1 -ParameterFilter { $ExecutablePath -eq $toolPath }
+                $captured = $script:CapturedInvocation
+                $captured | Should -Not -BeNull
+                $captured.Arguments[0] | Should -Be '-@'
+                $captured.FileContent | Should -Contain '-overwrite_original'
+                $captured.FileContent | Should -Contain "-XMP-exif:DateTimeOriginal=1999-01-02T17:43:00"
+                $captured.FileContent[-1] | Should -Be $fp
 
                 $result.Timestamp | Should -Be '1999-01-02T17:43:00'
             } -ArgumentList $filePath, $expectedExifToolPath
@@ -134,14 +148,27 @@ Describe 'PSMetaDataInjector' {
 
             InModuleScope SetMediaMetadata -ScriptBlock {
                 param($fp, $tp, $manual)
-                Mock Invoke-PSMetaDataInjectorExifTool { param($ExecutablePath, $Arguments) return 0 } -ModuleName SetMediaMetadata
+                $script:CapturedInvocation = $null
+                Mock Invoke-PSMetaDataInjectorExifTool {
+                    param($ExecutablePath, $Arguments)
+                    $content = @()
+                    if ($Arguments -and $Arguments[0] -eq '-@' -and $Arguments.Count -ge 2 -and (Test-Path -LiteralPath $Arguments[1])) {
+                        $content = Get-Content -LiteralPath $Arguments[1]
+                    }
+                    $script:CapturedInvocation = [pscustomobject]@{
+                        Executable  = $ExecutablePath
+                        Arguments   = $Arguments
+                        FileContent = $content
+                    }
+                    return 0
+                } -ModuleName SetMediaMetadata
                 Mock Get-DateFromFileName { return $null } -ModuleName SetMediaMetadata
 
                 $result = Set-MediaMetadata -InputPath $fp -InferCreatedDate -CreatedDate $manual -Passthru -ExifToolPath $tp -WhatIf:$false -Confirm:$false
 
-                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1 -ParameterFilter {
-                    $Arguments -contains "-XMP-exif:DateTimeOriginal=2024-10-05T04:03:02"
-                }
+                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1
+                $captured = $script:CapturedInvocation
+                $captured.FileContent | Should -Contain "-XMP-exif:DateTimeOriginal=2024-10-05T04:03:02"
 
                 $result.Timestamp | Should -Be '2024-10-05T04:03:02'
             } -ArgumentList $filePath, $toolPath, $manualDate
@@ -159,23 +186,69 @@ Describe 'PSMetaDataInjector' {
 
             InModuleScope SetMediaMetadata -ScriptBlock {
                 param($fp, $tp, $titleParam, $descParam, $keywordParam)
-                Mock Invoke-PSMetaDataInjectorExifTool { param($ExecutablePath, $Arguments) return 0 } -ModuleName SetMediaMetadata
+                $script:CapturedInvocation = $null
+                Mock Invoke-PSMetaDataInjectorExifTool {
+                    param($ExecutablePath, $Arguments)
+                    $content = @()
+                    if ($Arguments -and $Arguments[0] -eq '-@' -and $Arguments.Count -ge 2 -and (Test-Path -LiteralPath $Arguments[1])) {
+                        $content = Get-Content -LiteralPath $Arguments[1]
+                    }
+                    $script:CapturedInvocation = [pscustomobject]@{
+                        Executable  = $ExecutablePath
+                        Arguments   = $Arguments
+                        FileContent = $content
+                    }
+                    return 0
+                } -ModuleName SetMediaMetadata
 
                 $result = Set-MediaMetadata -InputPath $fp -InferCreatedDate -Title $titleParam -Description $descParam -Keywords $keywordParam -ExifToolPath $tp -Passthru -WhatIf:$false -Confirm:$false
 
-                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1 -ParameterFilter {
-                    ($Arguments -contains "-XMP-dc:Title-x-default=$titleParam") -and
-                    ($Arguments -contains "-XMP-photoshop:Headline=$titleParam") -and
-                    ($Arguments -contains "-XMP-dc:Description-x-default=$descParam") -and
-                    ($Arguments -contains '-XMP-lr:hierarchicalSubject=') -and
-                    ($Arguments | Where-Object { $_ -like '-XMP-lr:hierarchicalSubject+*' }).Count -eq 2
-                }
+                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1
+                $captured = $script:CapturedInvocation
+                $captured.FileContent | Should -Contain "-XMP-dc:Title-x-default=$titleParam"
+                $captured.FileContent | Should -Contain "-XMP-photoshop:Headline=$titleParam"
+                $captured.FileContent | Should -Contain "-XMP-dc:Description-x-default=$descParam"
+                (@($captured.FileContent | Where-Object { $_ -eq '-XMP-lr:hierarchicalSubject=' })).Count | Should -Be 1
+                (@($captured.FileContent | Where-Object { $_ -like '-XMP-lr:hierarchicalSubject+*' })).Count | Should -Be 2
 
                 $result.Title | Should -Be $titleParam
                 $result.Description | Should -Be $descParam
                 $result.Keywords | Should -Contain 'JavaScript'
                 $result.HierarchicalKeywords | Should -Contain 'IT (information technology)|software|application|WinMerge'
             } -ArgumentList $filePath, $toolPath, $titleValue, $descriptionValue, $keywords
+        }
+
+        It 'writes metadata via UTF-8 argument file so non-ASCII text survives' {
+            $filePath = [System.IO.Path]::Combine($script:TestsDest, '19990102T174300+0900.jpg')
+            $toolPath = $script:TestExifToolPath
+            $titleValue = 'AndroidのSD書き換え速度を向上させるSD Tools'
+
+            InModuleScope SetMediaMetadata -ScriptBlock {
+                param($fp, $tp, $titleParam)
+                $script:CapturedInvocation = $null
+                Mock Invoke-PSMetaDataInjectorExifTool {
+                    param($ExecutablePath, $Arguments)
+                    $content = @()
+                    if ($Arguments -and $Arguments[0] -eq '-@' -and $Arguments.Count -ge 2 -and (Test-Path -LiteralPath $Arguments[1])) {
+                        $content = Get-Content -LiteralPath $Arguments[1]
+                    }
+                    $script:CapturedInvocation = [pscustomobject]@{
+                        Executable  = $ExecutablePath
+                        Arguments   = $Arguments
+                        FileContent = $content
+                    }
+                    return 0
+                } -ModuleName SetMediaMetadata
+
+                Set-MediaMetadata -InputPath $fp -Title $titleParam -ExifToolPath $tp -CreatedDate (Get-Date '2024-11-10') -WhatIf:$false -Confirm:$false
+
+                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1
+                $captured = $script:CapturedInvocation
+                $captured.FileContent | Should -Contain '-charset'
+                $captured.FileContent | Should -Contain 'ExifTool=UTF8'
+                $captured.FileContent | Should -Contain 'Filename=UTF8'
+                $captured.FileContent | Should -Contain "-XMP-dc:Title-x-default=$titleParam"
+            } -ArgumentList $filePath, $toolPath, $titleValue
         }
 
         It 'skips files when no metadata is available' {
@@ -203,9 +276,7 @@ Describe 'PSMetaDataInjector' {
 
                 $results = Set-MediaMetadata -InputPath $sourceRoot -Recurse -InferCreatedDate -Passthru -OutputDirectory $outRoot -ExifToolPath $tp -WhatIf:$false -Confirm:$false | Sort-Object FilePath
 
-                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 4 -ParameterFilter {
-                    $ExecutablePath -eq $tp -and $Arguments[-1] -like ($outRoot + '*')
-                }
+                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 4
                 $results.Count | Should -Be 4
                 (($results | Where-Object { $_.SourcePath -notlike ($sourceRoot + '*') }) | Measure-Object).Count | Should -Be 0
                 (($results | Where-Object { $_.FilePath -notlike ($outRoot + '*') }) | Measure-Object).Count | Should -Be 0
@@ -248,13 +319,25 @@ Describe 'PSMetaDataInjector' {
 
             InModuleScope SetMediaMetadata -ScriptBlock {
                 param($inputPattern, $expectedFile, $tp, $manual)
-                Mock Invoke-PSMetaDataInjectorExifTool { param($ExecutablePath, $Arguments) return 0 } -ModuleName SetMediaMetadata
+                $script:CapturedInvocation = $null
+                Mock Invoke-PSMetaDataInjectorExifTool {
+                    param($ExecutablePath, $Arguments)
+                    $content = @()
+                    if ($Arguments -and $Arguments[0] -eq '-@' -and $Arguments.Count -ge 2 -and (Test-Path -LiteralPath $Arguments[1])) {
+                        $content = Get-Content -LiteralPath $Arguments[1]
+                    }
+                    $script:CapturedInvocation = [pscustomobject]@{
+                        Executable  = $ExecutablePath
+                        Arguments   = $Arguments
+                        FileContent = $content
+                    }
+                    return 0
+                } -ModuleName SetMediaMetadata
 
                 $result = Set-MediaMetadata -InputPath $inputPattern -CreatedDate $manual -ExifToolPath $tp -Passthru -WhatIf:$false -Confirm:$false
 
-                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1 -ParameterFilter {
-                    $Arguments[-1] -eq $expectedFile
-                }
+                Assert-MockCalled Invoke-PSMetaDataInjectorExifTool -Times 1
+                $script:CapturedInvocation.FileContent[-1] | Should -Be $expectedFile
 
                 $result.FilePath | Should -Be $expectedFile
                 $result.Timestamp | Should -Be '2024-12-01T12:00:00'
