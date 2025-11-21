@@ -511,8 +511,32 @@ Outputs an object describing each updated file to the pipeline.
                         Copy-Item -LiteralPath $sourcePath -Destination $targetPath -Force
                     }
 
-                    $arguments = @('-overwrite_original', '-P', '-q', '-q') + $metadataArguments + $targetPath
-                    $exitCode = Invoke-PSMetaDataInjectorExifTool -ExecutablePath $script:PSMetaDataInjector_ExifToolPath -Arguments $arguments
+                    $argumentLines = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($base in @('-overwrite_original', '-P', '-q', '-q', '-charset', 'ExifTool=UTF8', '-charset', 'Filename=UTF8')) {
+                        $argumentLines.Add($base) | Out-Null
+                    }
+
+                    foreach ($metaArgument in $metadataArguments) {
+                        $argumentLines.Add($metaArgument) | Out-Null
+                    }
+
+                    $argumentLines.Add($targetPath) | Out-Null
+
+                    $tempArgumentFile = $null
+                    $exitCode = 0
+                    try {
+                        $tempArgumentFile = [System.IO.Path]::GetTempFileName()
+                        $utf8Encoding = New-Object System.Text.UTF8Encoding($false)
+                        [System.IO.File]::WriteAllLines($tempArgumentFile, $argumentLines, $utf8Encoding)
+
+                        $argumentFileCall = @('-@', $tempArgumentFile)
+                        $exitCode = Invoke-PSMetaDataInjectorExifTool -ExecutablePath $script:PSMetaDataInjector_ExifToolPath -Arguments $argumentFileCall
+                    }
+                    finally {
+                        if ($tempArgumentFile -and (Test-Path -LiteralPath $tempArgumentFile)) {
+                            Remove-Item -LiteralPath $tempArgumentFile -Force -ErrorAction SilentlyContinue
+                        }
+                    }
 
                     if ($exitCode -ne 0) {
                         throw ("exiftool exited with code {0} while processing '{1}'." -f $exitCode, $targetPath)

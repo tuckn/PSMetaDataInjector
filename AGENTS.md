@@ -14,6 +14,7 @@
 - PowerShellの動作バージョンが限定される場合、`#Requires -Version`を必ず指定する。上記の理想的な状態を満たすならば不要。
 - PowerShellの動作バージョンが限定される場合は、その理由と互換性をREADME.mdとコード内に明記する。
 - コード内の日本語が文字化けないよう、PowerShellスクリプトのファイル形式はUTF8 with BOM CRLFとする。
+- 日本語環境のCMDからPowerShellを呼び出した場合でも、正常に動作すること。日本語環境のCMDでは標準文字コードがShift-JISであり、これが文字化けの原因になりやすい。例えば、CMD上で次のように実行した際に文字化けが発生しないようにする: `pwsh script.ps1 -Argument "日本語"`
 
 ## Repository Layout
 
